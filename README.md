@@ -14,7 +14,7 @@ docker tag tinc:latest  zetanova/tinc
 
 docker volume create tinc
 docker run --rm -it --volume tinc:/etc/tinc zetanova/tinc --generate-keys
-//todo add config to volume
+//todo add the tinc config to volume
 
 docker run --rm -it --volume tinc:/etc/tinc busybox chmod +x /etc/tinc/tinc-up /etc/tinc/tinc-down
 
