@@ -9,22 +9,54 @@ docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t tinc:late
 docker buildx imagetools inspect tinc:latest 
 
 ## docker setup
-docker pull tinc:latest 
-docker tag tinc:latest  zetanova/tinc
-
+```
 docker volume create tinc
-docker run --rm -it --volume tinc:/etc/tinc zetanova/tinc --generate-keys
-//todo add the tinc config to volume
+docker run --rm -it --volume tinc:/etc/tinc zetanova/tinc:latest --generate-keys
+docker run --rm -it --volume tinc:/etc/tinc alpine /bin/cat /etc/tinc/rsa_key.pub
 
-docker run --rm -it --volume tinc:/etc/tinc busybox chmod +x /etc/tinc/tinc-up /etc/tinc/tinc-down
+#from admin host
+#create/update tinc.conf
+#create/update hosts/newnode
+#create/update tinc-up and tinc-down
 
+#create container 
+docker create -it \
+    --name tinc \
+    --restart=always \
+    --net=host \
+    --device=/dev/net/tun \
+    --cap-add NET_ADMIN \
+    --volume tinc:/etc/tinc \
+    zetanova/tinc:1.0.36
+
+#add config from admin host
+tar -f newnode.tar -r tinc.conf tinc-up tinc-down hosts\newnode hosts\remotenode2 hosts\remotenode2
+type newnode.tar | ssh admin@newnode sudo docker cp - tinc:/etc/tinc/
+ssh admin@newnode sudo docker exec tinc /bin/chmod u+x /etc/tinc/tinc-up /etc/tinc/tinc-down
+ssh admin@newnode sudo docker start tinc
+
+
+#add hosts/newnode to remotehost
+tar -f remotehost_hosts.tar -C hosts -r newnode
+type remotehost_hosts.tar | ssh remotehost docker cp - tinc:/etc/tinc/hosts/
+ssh remotehost docker kill --signal=HUP tinc
+
+#update tinc config
+tar -f remotehost_conf.tar -r tinc.conf
+type remotehost_conf.tar | ssh remotehost docker cp - tinc:/etc/tinc/hosts/
+ssh remotehost docker kill --signal=HUP tinc
+
+
+```
 
 ### firewall centos
 firewall-cmd --permanent --zone=public --add-port=655/tcp 
 firewall-cmd --permanent --zone=public --add-port=655/udp 
 
+### firewall debian/ubuntu
+ufw allow 655
+
 ## docker run dedicated
-### bash
 ```
 docker run -it -d \
     --name tinc \
@@ -33,22 +65,16 @@ docker run -it -d \
     --device=/dev/net/tun \
     --cap-add NET_ADMIN \
     --volume tinc:/etc/tinc \
-    zetanova/tinc
-```
-### powershell
-```
-docker run --rm -it -d ^
-    --name tinc ^
-    --restart=always ^
-    --net=host ^
-    --device=/dev/net/tun ^
-    --cap-add NET_ADMIN ^
-    --volume tinc:/etc/tinc ^
-    tinc:latest
+    zetanova/tinc:1.0.36
+
+#to disbale autostart
+docker update --restart=no
 ```
 
-#docker disbale autostart
+## to disable autostart
+```
 docker update --restart=no
+```
 
 ## docker control
 1. reload
@@ -62,5 +88,10 @@ docker update --restart=no
 5. set debug level 0-5
 `docker kill --signal=0 tinc`
 
+## docker debug
+```
+docker kill --signal=2 tinc
+docker logs tinc -f
+```
 
 
